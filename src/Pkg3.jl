@@ -23,29 +23,30 @@ function Base.julia_cmd(julia::AbstractString)
     return cmd
 end
 
-function _find_in_path(name::String, wd::Union{Void,String})
-    isabspath(name) && return name
-    base = name
-    if endswith(name, ".jl")
-        base = name[1:end-3]
-    else
-        name = string(base, ".jl")
+function find_package(name::String)
+    endswith(name, ".jl") && (name = name[1:end-3])
+    env = Pkg3.Types.EnvCache()
+    if haskey(env.manifest, name)
+        infos = env.manifest[name]
+        if length(infos) < 1
+            return nothing
+        elseif length(infos) == 1
+            info = infos[1]
+        else
+            
+        end
     end
-    if wd !== nothing
-        path = joinpath(wd, name)
-        Base.isfile_casesensitive(path) && return path
-    end
-    info = Pkg3.Operations.package_env_info(base, verb = "use")
-    info == nothing && return nothing
-    haskey(info, "uuid") || return nothing
-    haskey(info, "hash-sha1") || return nothing
-    uuid = Base.Random.UUID(info["uuid"])
-    hash = Pkg3.Types.SHA1(info["hash-sha1"])
-    path = Pkg3.Operations.find_installed(uuid, hash)
-    ispath(path) ? joinpath(path, "src", name) : nothing
+    return nothing
 end
 
-Base.find_in_path(name::String, wd::Void) = _find_in_path(name, wd)
-Base.find_in_path(name::String, wd::String) = _find_in_path(name, wd)
+if VERSION < v"0.6"
+    error("Julia $VERSION not supported, at least version 0.6 is required.")
+elseif VERSION < v"0.7-"
+    # hook into old find_in_path API, which is very weird and broken:
+    Base.find_in_path(name::String, ::Void) = find_package(name)
+    Base.find_in_path(name::String) = nothing
+else
+    error("Julia $VERSION not yet supported.")
+end
 
 end # module

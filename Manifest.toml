@@ -8,3 +8,11 @@ deps = ["Compat"]
 hash-sha1 = "91cc54078cfe28488add383c458333ef39cdcde5"
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.5.1"
+
+[[Cards]]
+deps = ["Compat"]
+path = "/Users/stefan/projects/Cards.jl"
+
+[[Bridge]]
+deps = ["Cards"]
+path = "/Users/stefan/projects/Bridge.jl"
