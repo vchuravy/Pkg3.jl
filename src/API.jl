@@ -75,5 +75,25 @@ function test(env::EnvCache, pkgs::Vector{PackageSpec}; coverage=false, preview=
     Pkg3.Operations.test(env, pkgs; coverage=coverage)
 end
 
+
+function url_and_pkg(url_or_pkg::AbstractString)
+    # try to parse as URL or local path
+    m = match(r"(?:^|[/\\])(\w+?)(?:\.jl)?(?:\.git)?$", url_or_pkg)
+    m === nothing && throw(PkgError("can't determine package name from URL: $url_or_pkg"))
+    return url_or_pkg, m.captures[1]
+end
+
+clone(pkg::String; kwargs...) = clone(pkg; kwargs...)
+
+function clone(env::EnvCache, url::AbstractString; name=nothing, path=nothing, preview=env.preivew[])
+    env.preview[] = preview
+    preview && previewmode_info()
+    if name == nothing
+        url, name = url_and_pkg(url)
+    end
+    error()
+    Pkg3.Operations.clone(env, pkgs; coverage=coverage)
+end
+
 end # module
 

@@ -32,6 +32,7 @@ const cmds = Dict(
     "gc"        => :gc,
     "fsck"      => :fsck,
     "preview"   => :preview,
+    "clone"     => :clone
 )
 
 const opts = Dict(
@@ -45,6 +46,8 @@ const opts = Dict(
     "patch"    => :patch,
     "fixed"    => :fixed,
     "coverage" => :coverage,
+    "path"     => :path,
+    "name"     => :name,
 )
 
 function parse_option(word::AbstractString)
@@ -153,7 +156,8 @@ function do_cmd!(env, tokens, repl)
     cmd == :add     ?     do_add!(env, tokens) :
     cmd == :up      ?      do_up!(env, tokens) :
     cmd == :status  ?  do_status!(env, tokens) :
-    cmd == :test   ?   do_test!(env, tokens) :
+    cmd == :test    ?    do_test!(env, tokens) :
+    cmd == :clone   ?   do_clone!(env, tokens):
         cmderror("`$cmd` command not yet implemented")
 end
 
@@ -448,6 +452,22 @@ function do_test!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
     isempty(pkgs) && cmderror("`test` takes a set of packages")
     Pkg3.API.test(env, pkgs; coverage = coverage)
 end
+
+function do_clone!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
+    isempty(tokens) && cmderror("fdsfds")
+    local url
+    while !isempty(tokens)
+        token = shift!(tokens)
+        if token[1] != :string
+            cmderror("expected a url given as a string")
+        end
+        url = token[2]
+        # TODO: verify url format
+    end
+    Pkg3.API.clone(env, url)
+end
+
+
 
 function create_mode(repl, main)
     pkg_mode = LineEdit.Prompt("pkg> ";
