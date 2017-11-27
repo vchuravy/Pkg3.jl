@@ -3,6 +3,7 @@ module Pkg3
 
 const DEPOTS = [joinpath(homedir(), ".julia")]
 depots() = DEPOTS
+const DEFAULT_DEV_PATH = joinpath(homedir(), ".julia", "dev")
 
 const USE_LIBGIT2_FOR_ALL_DOWNLOADS = false
 const NUM_CONCURRENT_DOWNLOADS      = 8

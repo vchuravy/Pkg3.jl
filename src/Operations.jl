@@ -5,6 +5,7 @@ using Base: LibGit2
 using Pkg3.TerminalMenus
 using Pkg3.Types
 import Pkg3: Pkg2, depots, BinaryProvider, USE_LIBGIT2_FOR_ALL_DOWNLOADS, NUM_CONCURRENT_DOWNLOADS
+using SHA
 
 const SlugInt = UInt32 # max p = 4
 const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -115,21 +116,59 @@ end
 load_package_data(f::Base.Callable, path::String, version::VersionNumber) =
     get(load_package_data(f, path, [version]), version, nothing)
 
+
+global DEPS
 function deps_graph(env::EnvCache, pkgs::Vector{PackageSpec})
     deps = Dict{UUID,Dict{VersionNumber,Tuple{SHA1,Dict{UUID,VersionSpec}}}}()
     uuids = [pkg.uuid for pkg in pkgs]
     seen = UUID[]
+    for pkg in [] #pkgs
+        path = nothing
+        if has_path(pkg)
+            path = pkg.path
+        else
+            info = manifest_info(env, pkg.uuid)
+            info != nothing && haskey(info, "path") && (path = info["path"])
+        end
+        path == nothing && continue
+        deps[uuid] = valtype(deps)()
+        req_path = joinpath(pkg.path, "REQUIRE")
+        # Since this package is local, it is also fixed so no point looking up the dependencies for other versions
+        push!(seen, pkg.uuid)
+        if isfile(req_path)
+            deps = Pkg2.Reqs.read(req_path)
+        else
+            continue
+        end
+        for dep in deps
+            dep isa Pkg2.Reqs.Requirement || continue
+            #@sho dep
+            #deps[uuid][v] = 
+        end
+        @show deps
+        @show req_path
+        global DEPS = deps
+        error()
+                                   
+        #if isfile(joinpath(pkg.path, name))
+        @show pkg, path
+        error()
+    end
     while true
         unseen = setdiff(uuids, seen)
         isempty(unseen) && break
         for uuid in unseen
+            @show uuid
             push!(seen, uuid)
             deps[uuid] = valtype(deps)()
             for path in registered_paths(env, uuid)
                 version_info = load_versions(path)
+                @show version_info
                 versions = sort!(collect(keys(version_info)))
                 dependencies = load_package_data(UUID, joinpath(path, "dependencies.toml"), versions)
+                @show dependencies
                 compatibility = load_package_data(VersionSpec, joinpath(path, "compatibility.toml"), versions)
+                @show compatibility
                 for (v, h) in version_info
                     d = get_or_make(Dict{String,UUID}, dependencies, v)
                     r = get_or_make(Dict{String,VersionSpec}, compatibility, v)
@@ -144,26 +183,41 @@ function deps_graph(env::EnvCache, pkgs::Vector{PackageSpec})
         end
         find_registered!(env, uuids)
     end
+    global DEPS_FULL = deps
     return deps
 end
 
+global DEPS_FULL = 0
+global DEPS_CONVERTED = 0
 "Resolve a set of versions given package version specs"
 function resolve_versions!(env::EnvCache, pkgs::Vector{PackageSpec})::Dict{UUID,VersionNumber}
     info("Resolving package versions")
     # anything not mentioned is fixed
+    # a cloned package might not have an uuid
     uuids = UUID[pkg.uuid for pkg in pkgs]
     uuid_to_name = Dict{String, String}()
     for (name::String, uuid::UUID) in env.project["deps"]
         uuid_to_name[string(uuid)] = name
-        uuid in uuids && continue
         info = manifest_info(env, uuid)
+        info == nothing && continue # TODO: can this happen?
         haskey(info, "version") || continue
         ver = VersionNumber(info["version"])
+        pkg_idx = findfirst(uuids, uuid)
+        # A local package should never be touched
+        if haskey(info, "path")
+            if pkg_idx != 0
+                pkgs[pkg_idx].version = ver
+            end
+        end
+        uuid in uuids && continue
         push!(pkgs, PackageSpec(name, uuid, ver))
     end
+
     # construct data structures for resolver and call it
     reqs = Dict{String,Pkg2.Types.VersionSet}(string(pkg.uuid) => pkg.version for pkg in pkgs)
     deps = convert(Dict{String,Dict{VersionNumber,Pkg2.Types.Available}}, deps_graph(env, pkgs))
+    global DEPS_CONVERTED = deps
+    error()
     for dep_uuid in keys(deps)
         info = manifest_info(env, UUID(dep_uuid))
         if info != nothing
@@ -666,5 +720,62 @@ function test(env::EnvCache, pkgs::Vector{PackageSpec}; coverage=false)
                  " errored during testing")
     end
 end
+
+## Computing UUID5 values from (namespace, key) pairs ##
+function uuid5(namespace::UUID, key::String)
+    data = [reinterpret(UInt8, [namespace.value]); Vector{UInt8}(key)]
+    u = reinterpret(UInt128, sha1(data)[1:16])[1]
+    u &= 0xffffffffffff0fff3fffffffffffffff
+    u |= 0x00000000000050008000000000000000
+    return UUID(u)
+end
+uuid5(namespace::UUID, key::AbstractString) = uuid5(namespace, String(key))
+
+const uuid_dns = UUID(0x6ba7b810_9dad_11d1_80b4_00c04fd430c8)
+const uuid_julia = uuid5(uuid_dns, "julialang.org")
+const uuid_package = uuid5(uuid_julia, "package")
+const uuid_registry = uuid5(uuid_julia, "registry")
+
+
+
+function clone(env::EnvCache, pkgs::Vector{PackageSpec})
+    for pkg in pkgs
+        # Use default path if path was not given
+        if isdir(joinpath(pkg.path, pkg.name))
+            if !isfile(joinpath(pkg.path, pkg.name, "src", pkg.name * ".jl"))
+                cmderror("Path $(pkg.path) exists but it does not contain `src/$(pkg).jl?")
+            end
+        end
+
+        @show pkg.name
+        @show has_uuid(pkg)
+        @show pkg.uuid
+        if has_uuid(pkg)
+            uuid = pkg.uuid
+            max_version = typemin(VersionNumber)
+            for path in registered_paths(env, uuid)
+                version_info = load_versions(path)
+                max_version = max(max_version, maximum(keys(version_info)))
+            end
+            pkg.version = max_version
+        else
+            # We are cloning a packages that doesn't exist in the registry.
+            # Give it a new UUID
+            pkg.uuid = uuid5(uuid_package, pkg.name)
+        end
+        if isdir(pkg.path)
+            #cmderror("$(pkg.path) already exists")
+        else
+            info("Cloning $(pkg.name) from $(pkg.url) to $(pkg.path)")
+            LibGit2.clone(pkg.url, pkg.path)
+        end
+        env.project["deps"][pkg.name] = string(pkg.uuid)
+    end
+    resolve_versions!(env, pkgs)
+    new = apply_versions(env, pkgs)
+    write_env(env)
+    build_versions(env, new)
+end
+
 end # module
 

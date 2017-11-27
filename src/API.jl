@@ -1,6 +1,7 @@
 module API
 
 import Pkg3
+import Pkg3.DEFAULT_DEV_PATH
 using Pkg3.Types
 using Base.Random.UUID
 
@@ -82,17 +83,18 @@ function url_and_pkg(url_or_pkg::AbstractString)
     m === nothing && throw(PkgError("can't determine package name from URL: $url_or_pkg"))
     return url_or_pkg, m.captures[1]
 end
-
 clone(pkg::String; kwargs...) = clone(pkg; kwargs...)
 
-function clone(env::EnvCache, url::AbstractString; name=nothing, path=nothing, preview=env.preivew[])
+function clone(env::EnvCache, url::AbstractString; name=nothing, basepath=nothing, preview=env.preview[])
     env.preview[] = preview
     preview && previewmode_info()
     if name == nothing
         url, name = url_and_pkg(url)
     end
-    error()
-    Pkg3.Operations.clone(env, pkgs; coverage=coverage)
+    basepath == nothing && (basepath = get(ENV, "JULIA_PKG_DEV_PATH", DEFAULT_DEV_PATH))
+    pkg = PackageSpec(name=name, path=joinpath(basepath, name), url=url)
+    registry_resolve!(env, [pkg])
+    Pkg3.Operations.clone(env, [pkg])
 end
 
 end # module

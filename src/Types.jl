@@ -9,7 +9,7 @@ import Pkg3
 import Pkg3: depots, iswindows
 
 export SHA1, VersionRange, VersionSpec, PackageSpec, UpgradeLevel, EnvCache,
-    CommandError, cmderror, has_name, has_uuid, write_env, parse_toml, find_registered!,
+    CommandError, cmderror, has_name, has_uuid, has_path, has_url, write_env, parse_toml, find_registered!,
     project_resolve!, manifest_resolve!, registry_resolve!, ensure_resolved,
     manifest_info, registered_uuids, registered_paths, registered_uuid, registered_name,
     git_file_stream, read_project, read_manifest, pathrepr
@@ -172,18 +172,27 @@ mutable struct PackageSpec
     uuid::UUID
     version::VersionTypes
     mode::Symbol
-    PackageSpec(name::String, uuid::UUID, version::VersionTypes) =
-        new(name, uuid, version, :project)
+    path::String
+    url::String
+    PackageSpec(name::AbstractString, uuid::UUID, version::VersionTypes, project::Symbol=:project,
+            path::AbstractString="", url::AbstractString="") =
+    new(name, uuid, version, project, path, url)
 end
-PackageSpec(name::String, uuid::UUID) =
+PackageSpec(name::AbstractString, uuid::UUID) =
     PackageSpec(name, uuid, VersionSpec())
 PackageSpec(name::AbstractString, version::VersionTypes=VersionSpec()) =
     PackageSpec(name, UUID(zero(UInt128)), version)
 PackageSpec(uuid::UUID, version::VersionTypes=VersionSpec()) =
     PackageSpec("", uuid, version)
+PackageSpec(;name::AbstractString="", uuid::UUID=UUID(zero(UInt128)), version::VersionTypes=VersionSpec(), 
+            mode::Symbol=:project, path::AbstractString="", url::AbstractString="") =
+    PackageSpec(name, uuid, version, mode, path, url)
+
 
 has_name(pkg::PackageSpec) = !isempty(pkg.name)
 has_uuid(pkg::PackageSpec) = pkg.uuid != UUID(zero(UInt128))
+has_path(pkg::PackageSpec) = !isempty(pkg.path)
+has_url(pkg::PackageSpec)  = !isempty(pkg.urkl)
 
 function Base.show(io::IO, pkg::PackageSpec)
     print(io, "PackageSpec(")
