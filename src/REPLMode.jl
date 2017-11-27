@@ -1,9 +1,7 @@
 module REPLMode
 
-import Pkg3
-using Pkg3.Types
-using Pkg3.Display
-using Pkg3.Operations
+import ..Pkg3
+using ..Pkg3: Types, Display, Operations
 
 import Base: LineEdit, REPL, REPLCompletions
 import Base.Random: UUID
@@ -32,6 +30,8 @@ const cmds = Dict(
     "gc"        => :gc,
     "fsck"      => :fsck,
     "preview"   => :preview,
+    "clone"     => :clone,
+    "free"      => :free,
 )
 
 const opts = Dict(
@@ -45,6 +45,8 @@ const opts = Dict(
     "patch"    => :patch,
     "fixed"    => :fixed,
     "coverage" => :coverage,
+    "path"     => :path,
+    "name"     => :name,
 )
 
 function parse_option(word::AbstractString)
@@ -155,6 +157,8 @@ function do_cmd!(env, tokens, repl)
     cmd == :status  ?  do_status!(env, tokens) :
     cmd == :test    ?    do_test!(env, tokens) :
     cmd == :gc      ?      do_gc!(env, tokens) :
+    cmd == :clone   ?   do_clone!(env, tokens) :
+    cmd == :free    ?    do_free!(env, tokens) :
         cmderror("`$cmd` command not yet implemented")
 end
 
@@ -458,6 +462,32 @@ end
 function do_gc!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
     !isempty(tokens) && cmderror("`gc` does not take any arguments")
     Pkg3.API.gc(env)
+end
+
+function do_clone!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
+    isempty(tokens) && cmderror("`clone` take an url to a package to clone")
+    local url
+    while !isempty(tokens)
+        token = shift!(tokens)
+        if token[1] != :string
+            cmderror("expected a url given as a string")
+        end
+        url = token[2]
+    end
+    Pkg3.API.clone(env, url)
+end
+
+function do_free!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
+    pkgs = PackageSpec[]
+    while !isempty(tokens)
+        token = shift!(tokens)
+        if token[1] == :pkg
+            push!(pkgs, PackageSpec(token[2:end]...))
+        else
+            cmderror("free only takes a list of packages")
+        end
+    end
+    Pkg3.API.free(env, pkgs)
 end
 
 
