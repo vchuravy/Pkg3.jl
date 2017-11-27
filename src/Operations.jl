@@ -116,13 +116,37 @@ end
 load_package_data(f::Base.Callable, path::String, version::VersionNumber) =
     get(load_package_data(f, path, [version]), version, nothing)
 
+global VER
+function load_require!(d, uuids, env, file)
+    pkgs = PackageSpec[]
+    versions = VersionSpec[]
+    for r in filter!(r->r isa Pkg2.Reqs.Requirement, Pkg2.Reqs.read(file))
+        pkg, version, systems = r.package, r.versions.intervals[1], r.system
+        pkg == "julia" && continue
+        vspec = VersionSpec([VersionRange(VersionBound(version.lower),
+                                                 VersionBound(version.upper))])
+        push!(versions, vspec)
+        push!(pkgs, PackageSpec(r.package))
+    end
+    registry_resolve!(env, pkgs)
+    for (pkg, version) in zip(pkgs, versions)
+        if !has_uuid(pkg)
+            cmderror("Could not find a UUID for package $pkg")
+        end
+        d[pkg.uuid] = version
+        push!(uuids, pkg.uuid)
+    end
+end
 
 global DEPS
 function deps_graph(env::EnvCache, pkgs::Vector{PackageSpec})
     deps = Dict{UUID,Dict{VersionNumber,Dict{UUID,VersionSpec}}}()
     uuids = [pkg.uuid for pkg in pkgs]
     seen = UUID[]
-    for pkg in [] #pkgs
+    for pkg in pkgs
+        uuid = pkg.uuid
+        @show pkg.name
+        @show uuid
         path = nothing
         if has_path(pkg)
             path = pkg.path
@@ -132,27 +156,16 @@ function deps_graph(env::EnvCache, pkgs::Vector{PackageSpec})
         end
         path == nothing && continue
         deps[uuid] = valtype(deps)()
+        deps[uuid][pkg.version] = valtype(deps[uuid])()
         req_path = joinpath(pkg.path, "REQUIRE")
         # Since this package is local, it is also fixed so no point looking up the dependencies for other versions
         push!(seen, pkg.uuid)
         if isfile(req_path)
-            deps = Pkg2.Reqs.read(req_path)
+            load_require!(deps[uuid][pkg.version], uuids, env, req_path)
         else
             continue
         end
-        for dep in deps
-            dep isa Pkg2.Reqs.Requirement || continue
-            #@sho dep
-            #deps[uuid][v] = 
-        end
-        @show deps
-        @show req_path
-        global DEPS = deps
-        error()
-                                   
-        #if isfile(joinpath(pkg.path, name))
-        @show pkg, path
-        error()
+        find_registered!(env, uuids)
     end
     while true
         unseen = setdiff(uuids, seen)
@@ -163,12 +176,9 @@ function deps_graph(env::EnvCache, pkgs::Vector{PackageSpec})
             deps[uuid] = valtype(deps)()
             for path in registered_paths(env, uuid)
                 version_info = load_versions(path)
-                @show version_info
                 versions = sort!(collect(keys(version_info)))
                 dependencies = load_package_data(UUID, joinpath(path, "dependencies.toml"), versions)
-                @show dependencies
                 compatibility = load_package_data(VersionSpec, joinpath(path, "compatibility.toml"), versions)
-                @show compatibility
                 for (v, h) in version_info
                     d = get_or_make(Dict{String,UUID}, dependencies, v)
                     r = get_or_make(Dict{String,VersionSpec}, compatibility, v)
@@ -215,9 +225,11 @@ function resolve_versions!(env::EnvCache, pkgs::Vector{PackageSpec})::Dict{UUID,
 
     # construct data structures for resolver and call it
     reqs = Dict{String,Pkg2.Types.VersionSet}(string(pkg.uuid) => pkg.version for pkg in pkgs)
+    display(reqs)
     deps = convert(Dict{String,Dict{VersionNumber,Pkg2.Types.Available}}, deps_graph(env, pkgs))
+    display(deps)
+    println("ER ARE HERE:::")
     global DEPS_CONVERTED = deps
-    error()
     for dep_uuid in keys(deps)
         info = manifest_info(env, UUID(dep_uuid))
         if info != nothing
@@ -366,7 +378,7 @@ function install(
     return version_path, true
 end
 
-function update_manifest(env::EnvCache, uuid::UUID, name::String, hash::SHA1, version::VersionNumber)
+function update_manifest(env::EnvCache, uuid::UUID, name::String, hash::SHA1, version::VersionNumber, path::AbstractString)
     infos = get!(env.manifest, name, Dict{String,Any}[])
     info = nothing
     for i in infos
@@ -380,6 +392,10 @@ function update_manifest(env::EnvCache, uuid::UUID, name::String, hash::SHA1, ve
     end
     info["version"] = string(version)
     info["hash-sha1"] = string(hash)
+    if !isempty(path)
+        # delete!(info, "hash-sha1")
+        info["path"] = path
+    end
     delete!(info, "deps")
     for path in registered_paths(env, uuid)
         data = load_package_data(UUID, joinpath(path, "dependencies.toml"), version)
@@ -463,10 +479,10 @@ function apply_versions(env::EnvCache, pkgs::Vector{PackageSpec})::Vector{UUID}
             vstr = version != nothing ? "v$version" : "[$h]"
             new && info("Installed $(rpad(names[pkg.uuid] * " ", max_name + 2, "─")) $vstr")
         end
-        uuid = pkg.uuid
+        uuid, path = pkg.uuid, pkg.path
         version = pkg.version::VersionNumber
         name, hash = names[uuid], hashes[uuid]
-        update_manifest(env, uuid, name, hash, version)
+        update_manifest(env, uuid, name, hash, version, path)
         new && push!(new_versions, uuid)
     end
     prune_manifest(env)
@@ -747,9 +763,6 @@ function clone(env::EnvCache, pkgs::Vector{PackageSpec})
             end
         end
 
-        @show pkg.name
-        @show has_uuid(pkg)
-        @show pkg.uuid
         if has_uuid(pkg)
             uuid = pkg.uuid
             max_version = typemin(VersionNumber)

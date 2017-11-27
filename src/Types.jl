@@ -8,7 +8,7 @@ using Pkg3.TerminalMenus
 import Pkg3
 import Pkg3: depots, iswindows
 
-export SHA1, VersionRange, VersionSpec, PackageSpec, UpgradeLevel, EnvCache,
+export SHA1, VersionRange, VersionSpec, VersionBound, PackageSpec, UpgradeLevel, EnvCache,
     CommandError, cmderror, has_name, has_uuid, has_path, has_url, write_env, parse_toml, find_registered!,
     project_resolve!, manifest_resolve!, registry_resolve!, ensure_resolved,
     manifest_info, registered_uuids, registered_paths, registered_uuid, registered_name,
@@ -135,8 +135,9 @@ Base.convert(::Type{VersionSet}, r::VersionRange{m,1}) where {m} =
     VersionSet(VersionNumber(r.lower.t...), VersionNumber(r.upper[1]+1))
 Base.convert(::Type{VersionSet}, r::VersionRange{m,2}) where {m} =
     VersionSet(VersionNumber(r.lower.t...), VersionNumber(r.upper[1], r.upper[2]+1))
-Base.convert(::Type{VersionSet}, r::VersionRange{m,3}) where {m} =
-    VersionSet(VersionNumber(r.lower.t...), VersionNumber(r.upper[1], r.upper[2], r.upper[3]+1))
+function Base.convert(::Type{VersionSet}, r::VersionRange{m,3}) where {m}
+    VersionSet(VersionNumber(r.lower.t...), VersionNumber(r.upper[1], r.upper[2], r.upper[3]))
+end
 Base.convert(::Type{VersionSet}, s::VersionSpec) = mapreduce(VersionSet, ∪, s.ranges)
 Base.convert(::Type{Available}, t::Dict{UUID,VersionSpec}) = Available(t)
 
