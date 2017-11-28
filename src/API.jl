@@ -94,6 +94,8 @@ function clone(env::EnvCache, url::AbstractString; name=nothing, basepath=nothin
     basepath == nothing && (basepath = get(ENV, "JULIA_PKG_DEV_PATH", DEFAULT_DEV_PATH))
     pkg = PackageSpec(name=name, path=joinpath(basepath, name), url=url)
     registry_resolve!(env, [pkg])
+    manifest_resolve!(env, [pkg])
+    # Not ensuring resolved here because we might be cloning an unregistered package
     Pkg3.Operations.clone(env, [pkg])
 end
 

@@ -136,7 +136,7 @@ Base.convert(::Type{VersionSet}, r::VersionRange{m,1}) where {m} =
 Base.convert(::Type{VersionSet}, r::VersionRange{m,2}) where {m} =
     VersionSet(VersionNumber(r.lower.t...), VersionNumber(r.upper[1], r.upper[2]+1))
 function Base.convert(::Type{VersionSet}, r::VersionRange{m,3}) where {m}
-    VersionSet(VersionNumber(r.lower.t...), VersionNumber(r.upper[1], r.upper[2], r.upper[3]))
+    VersionSet(VersionNumber(r.lower.t...), VersionNumber(r.upper[1], r.upper[2], r.upper[3] #=+1=#)) # <- overflows on typemax(VersionNumber)
 end
 Base.convert(::Type{VersionSet}, s::VersionSpec) = mapreduce(VersionSet, ∪, s.ranges)
 Base.convert(::Type{Available}, t::Dict{UUID,VersionSpec}) = Available(t)
@@ -315,7 +315,7 @@ function write_env(env::EnvCache)
     isempty(project["deps"]) && delete!(project, "deps")
     if !isempty(project) || ispath(env.project_file)
         info("Updating $(pathrepr(env, env.project_file))")
-        Pkg3.Display.print_project_diff(old_env, env)
+        #Pkg3.Display.print_project_diff(old_env, env)
         if !env.preview[]
             mkpath(dirname(env.project_file))
             open(env.project_file, "w") do io
@@ -326,7 +326,7 @@ function write_env(env::EnvCache)
     # update the manifest file
     if !isempty(env.manifest) || ispath(env.manifest_file)
         info("Updating $(pathrepr(env, env.manifest_file))")
-        Pkg3.Display.print_manifest_diff(old_env, env)
+        #Pkg3.Display.print_manifest_diff(old_env, env)
         manifest = deepcopy(env.manifest)
         uniques = sort!(collect(keys(manifest)), by=lowercase)
         filter!(name->length(manifest[name]) == 1, uniques)
