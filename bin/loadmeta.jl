@@ -3,9 +3,9 @@
 using Base: thispatch, thisminor, nextpatch, nextminor
 using Base.LinAlg: checksquare
 using Base.Random: UUID
-using SHA
 
 import Pkg3.Pkg2
+using Pkg3.SHA
 import Pkg2.Reqs: Reqs, Requirement
 import Pkg2.Types: VersionInterval
 

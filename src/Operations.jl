@@ -2,10 +2,7 @@ module Operations
 
 using Base.Random: UUID
 using Base: LibGit2
-using SHA
-using ..Pkg3.TerminalMenus
-using ..Pkg3.Types
-using ..Pkg3.SHA
+using ..Pkg3: SHA, TerminalMenus, Types
 import ..Pkg3: Pkg2, depots, equalto, BinaryProvider, USE_LIBGIT2_FOR_ALL_DOWNLOADS, NUM_CONCURRENT_DOWNLOADS
 
 const SlugInt = UInt32 # max p = 4
