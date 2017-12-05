@@ -9,7 +9,7 @@ function temp_pkg_dir(fn::Function)
     try
         project_path = joinpath(tempdir(), randstring())
         withenv("JULIA_ENV" => project_path) do
-            fn()
+            fn(project_path)
         end
     finally
         rm(project_path, recursive=true, force=true)
@@ -21,7 +21,7 @@ end
 # in the meantime
 const TEST_PKG = "Crayons"
 
-temp_pkg_dir() do
+temp_pkg_dir() do project_path
     Pkg3.add(TEST_PKG; preview = true)
     @test_warn "not in project" Pkg3.API.rm("Example")
     Pkg3.add(TEST_PKG)

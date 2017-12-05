@@ -118,111 +118,93 @@ function deps_graph(env::EnvCache, pkgs::Vector{PackageSpec}, reqs)
     deps = Dict{UUID,Dict{VersionNumber,Dict{UUID,VersionSpec}}}()
     uuids = [pkg.uuid for pkg in pkgs]
     seen = UUID[]
-    for i in 1:2
-        while true
-            unseen = setdiff(uuids, seen)
-            isempty(unseen) && break
-            for uuid in unseen
-                push!(seen, uuid)
-                deps[uuid] = valtype(deps)()
-                for path in registered_paths(env, uuid)
-                    version_info = load_versions(path)
-                    versions = sort!(collect(keys(version_info)))
-                    dependencies = load_package_data(UUID, joinpath(path, "dependencies.toml"), versions)
-                    compatibility = load_package_data(VersionSpec, joinpath(path, "compatibility.toml"), versions)
-                    for (v, h) in version_info
-                        d = get_or_make(Dict{String,UUID}, dependencies, v)
-                        r = get_or_make(Dict{String,VersionSpec}, compatibility, v)
-                        q = Dict(u => get_or_make(VersionSpec, r, p) for (p, u) in d)
-                        # VERSION in get_or_make(VersionSpec, r, "julia") || continue
-                        deps[uuid][v] = q
-                        for (p, u) in d
-                            u in uuids || push!(uuids, u)
-                        end
+    while true
+        unseen = setdiff(uuids, seen)
+        isempty(unseen) && break
+        for uuid in unseen
+            push!(seen, uuid)
+            deps[uuid] = valtype(deps)()
+            for path in registered_paths(env, uuid)
+                version_info = load_versions(path)
+                versions = sort!(collect(keys(version_info)))
+                dependencies = load_package_data(UUID, joinpath(path, "dependencies.toml"), versions)
+                compatibility = load_package_data(VersionSpec, joinpath(path, "compatibility.toml"), versions)
+                for (v, h) in version_info
+                    d = get_or_make(Dict{String,UUID}, dependencies, v)
+                    r = get_or_make(Dict{String,VersionSpec}, compatibility, v)
+                    q = Dict(u => get_or_make(VersionSpec, r, p) for (p, u) in d)
+                    # VERSION in get_or_make(VersionSpec, r, "julia") || continue
+                    deps[uuid][v] = q
+                    for (p, u) in d
+                        u in uuids || push!(uuids, u)
                     end
                 end
             end
-            find_registered!(env, uuids)
         end
-        if i == 1
-            collect_fixed!(env, reqs, deps, pkgs, uuids, seen)
-        end
+        find_registered!(env, uuids)
     end
     return deps
 end
 
-function collect_fixed!(env, reqs, deps, pkgs, uuids, seen)
+# This also sets the .path field for fixed packages in `pkgs`
+function collect_fixed!(env, pkgs, uuids)
     fix_deps = PackageSpec[]
+    fixed_pkgs = PackageSpec[]
     fix_deps_map = Dict{UUID, Vector{PackageSpec}}()
     uuid_to_pkg = Dict{UUID, PackageSpec}()
-    for (name::String, uuid::UUID) in env.project["deps"]
+    for pkg in pkgs
         path    = nothing
         version = nothing
-        pkg_idx = findfirst(equalto(uuid), uuids)
-        if pkg_idx != 0
-            pkg = pkgs[pkg_idx]
-            has_path(pkg) && (path = pkg.path)
-            has_version(pkg) && (version = pkg.version)
-        end
-        info = manifest_info(env, uuid)
+        has_path(pkg) && (path = pkg.path)
+        has_version(pkg) && (version = pkg.version)
+        info = manifest_info(env, pkg.uuid)
         version == nothing && info != nothing && haskey(info, "version") && (version = VersionNumber(info["version"]))
         path == nothing && info != nothing && haskey(info, "path") && (path = info["path"])
         if path != nothing # This is a fixed package
+            # Package is actually being freed, so it is not fixed
+            pkg.beingfreed && continue
             # A package with a path should have a version
             @assert version != nothing
-            # Specify the version of the fixedd package
-            pkg = if pkg_idx != 0
-                oldpkg = pkgs[pkg_idx]
-                # This package is curreently beeing freed, so it is not fixed anymore, bail!
-                oldpkg.beingfreed && continue
-                oldpkg.version = version
-                oldpkg.path = path
-                pkgs[pkg_idx]
-            else
-                newpkg = PackageSpec(name=name, uuid=uuid, version=version, path=path)
-                push!(pkgs, newpkg)
-                newpkg
-            end
-            uuid_to_pkg[uuid] = pkg
-            reqs[string(uuid)] = pkg.version
+            pkg.path = path
+            pkg.version = version
+
+            uuid_to_pkg[pkg.uuid] = pkg
             # Load the dependencies if this package has a REQUIRE
             reqfile = joinpath(path, "REQUIRE")
+            fix_deps_map[pkg.uuid] = valtype(fix_deps_map)()
             !isfile(reqfile) && continue
-            fix_deps_map[uuid] = valtype(fix_deps_map)()
             for r in filter!(r->r isa Pkg2.Reqs.Requirement, Pkg2.Reqs.read(reqfile))
                 # @assert length(r.versions.intervals) == 1
-                pkg, version = r.package, r.versions.intervals[1]
+                pkg_name, version = r.package, r.versions.intervals[1]
                 # TODO: Check VERSION
-                pkg == "julia" && continue
+                pkg_name == "julia" && continue
                 # Convert to Pkg3 data types
                 vspec = VersionSpec([VersionRange(VersionBound(version.lower),
                                                   VersionBound(version.upper))])
-                pkg = PackageSpec(r.package, vspec)
-                push!(fix_deps_map[uuid], pkg)
-                push!(fix_deps, pkg)
+                deppkg = PackageSpec(pkg_name, vspec)
+                push!(fix_deps_map[pkg.uuid], deppkg)
+                push!(fix_deps, deppkg)
             end
         end
     end
 
     # Look up the UUIDS for all the fixed dependencies in the registry in one shot
     registry_resolve!(env, fix_deps)
+    fixed = Dict{String, Pkg2.Types.Fixed}()
     # Collect the dependencies for the fixed packages
-    for (uuid, pkgs) in fix_deps_map
-        pkg = uuid_to_pkg[uuid]
-        # Need to get the pkg version here..
+    for (uuid, fixed_pkgs) in fix_deps_map
+        fix_pkg = uuid_to_pkg[uuid]
         v = Dict{VersionNumber,Dict{UUID,VersionSpec}}()
         q = Dict{UUID, VersionSpec}()
-        for deppkg in pkgs
+        for deppkg in fixed_pkgs
             if !has_uuid(deppkg)
                 cmderror("Could not find a UUID for package $(pkg.name) in the registry")
             end
-            deppkg.uuid in uuids || push!(uuids, deppkg.uuid)
             q[deppkg.uuid] = deppkg.version
         end
-        v[pkg.version] = q
-        deps[uuid] = v
+        fixed[string(uuid)] = Pkg2.Types.Fixed(fix_pkg.version, q)
     end
-    return deps
+    return fixed
 end
 
 "Resolve a set of versions given package version specs"
@@ -239,8 +221,19 @@ function resolve_versions!(env::EnvCache, pkgs::Vector{PackageSpec})::Dict{UUID,
         ver = VersionNumber(info["version"])
         push!(pkgs, PackageSpec(name, uuid, ver))
     end
+    # Gather fixed
+
     # construct data structures for resolver and call it
+    fixed = collect_fixed!(env, pkgs, uuids)
     reqs = Dict{String,Pkg2.Types.VersionSet}(string(pkg.uuid) => pkg.version for pkg in pkgs)
+    bktrc = Pkg2.Query.init_resolve_backtrace(reqs, fixed)
+    Pkg2.Query.check_fixed(reqs, fixed, uuid_to_name)
+    Pkg2.Query.propagate_fixed!(reqs, bktrc, fixed)
+    for uuid in keys(reqs)
+        if !(uuid in uuids)
+            push!(pkgs, PackageSpec(UUID(uuid)))
+        end
+    end
     deps = convert(Dict{String,Dict{VersionNumber,Pkg2.Types.Available}}, deps_graph(env, pkgs, reqs))
     for dep_uuid in keys(deps)
         info = manifest_info(env, UUID(dep_uuid))
@@ -248,12 +241,15 @@ function resolve_versions!(env::EnvCache, pkgs::Vector{PackageSpec})::Dict{UUID,
             uuid_to_name[info["uuid"]] = info["name"]
         end
     end
-    deps = Pkg2.Query.prune_dependencies(reqs, deps, uuid_to_name)
+    deps = Pkg2.Query.prune_dependencies(reqs, deps, uuid_to_name, bktrc)
     vers = convert(Dict{UUID,VersionNumber}, Pkg2.Resolve.resolve(reqs, deps, uuid_to_name))
     find_registered!(env, collect(keys(vers)))
+    # Put the fixed packages back
     # update vector of package versions
     for pkg in pkgs
-        pkg.version = vers[pkg.uuid]
+        if !has_path(pkg) # Fixed packages already have their version set
+            pkg.version = vers[pkg.uuid]
+        end
     end
     uuids = UUID[pkg.uuid for pkg in pkgs]
     for (uuid, ver) in vers

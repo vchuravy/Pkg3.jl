@@ -174,8 +174,6 @@ function gc(env::EnvCache=EnvCache(); period = Week(6), preview=env.preview[])
     info("Deleted $(length(paths_to_delete)) package installations", byte_save_str)
 end
 
-=======
-
 ## Computing UUID5 values from (namespace, key) pairs ##
 function uuid5(namespace::UUID, key::String)
     data = [reinterpret(UInt8, [namespace.value]); Vector{UInt8}(key)]
