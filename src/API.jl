@@ -2,7 +2,7 @@ module API
 
 import ..Pkg3
 import ..Pkg3: depots, logdir, TOML, DEFAULT_DEV_PATH
-using ..Pkg3: Dates, Types, SHA
+using ..Pkg3: Dates, Types
 using Base.Random.UUID
 
 previewmode_info() = info("In preview mode")
@@ -174,21 +174,6 @@ function gc(env::EnvCache=EnvCache(); period = Week(6), preview=env.preview[])
     info("Deleted $(length(paths_to_delete)) package installations", byte_save_str)
 end
 
-## Computing UUID5 values from (namespace, key) pairs ##
-function uuid5(namespace::UUID, key::String)
-    data = [reinterpret(UInt8, [namespace.value]); Vector{UInt8}(key)]
-    u = reinterpret(UInt128, sha1(data)[1:16])[1]
-    u &= 0xffffffffffff0fff3fffffffffffffff
-    u |= 0x00000000000050008000000000000000
-    return UUID(u)
-end
-uuid5(namespace::UUID, key::AbstractString) = uuid5(namespace, String(key))
-
-const uuid_dns = UUID(0x6ba7b810_9dad_11d1_80b4_00c04fd430c8)
-const uuid_julia = uuid5(uuid_dns, "julialang.org")
-const uuid_package = uuid5(uuid_julia, "package")
-const uuid_registry = uuid5(uuid_julia, "registry")
-
 function url_and_pkg(url_or_pkg::AbstractString)
     # try to parse as URL or local path
     m = match(r"(?:^|[/\\])(\w+?)(?:\.jl)?(?:\.git)?$", url_or_pkg)
@@ -210,7 +195,7 @@ function clone(env::EnvCache, url::AbstractString; name=nothing, basepath=nothin
     # Cloning a non existent package, give it a UUID and version
     if !has_uuid(pkg)
         pkg.version = v"0.0"
-        pkg.uuid = uuid5(uuid_package, pkg.name)
+        pkg.uuid = Base.Random.UUID(rand(UInt128))
     end
     ensure_resolved(env, [pkg])
     Pkg3.Operations.clone(env, [pkg])

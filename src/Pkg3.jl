@@ -1,7 +1,6 @@
 __precompile__(true)
 module Pkg3
 
-
 if VERSION < v"0.7.0-DEV.2575"
     const Dates = Base.Dates
 else
@@ -31,7 +30,7 @@ if !isdefined(Base, :EqualTo)
 end
 
 # load snapshotted dependencies
-include("../ext/SHA/src/SHA.jl")
+# include("../ext/SHA/src/SHA.jl")
 include("../ext/BinaryProvider/src/BinaryProvider.jl")
 include("../ext/TOML/src/TOML.jl")
 include("../ext/TerminalMenus/src/TerminalMenus.jl")
