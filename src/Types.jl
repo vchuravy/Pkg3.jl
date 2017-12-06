@@ -177,7 +177,7 @@ mutable struct PackageSpec
     beingfreed::Bool # TODO: Get rid of this field
     PackageSpec(name::AbstractString, uuid::UUID, version::VersionTypes, project::Symbol=:project,
             path::AbstractString="", url::AbstractString="", beingfreed=false) =
-    new(name, uuid, version, project, path, url)
+    new(name, uuid, version, project, path, url, beingfreed)
 end
 PackageSpec(name::AbstractString, uuid::UUID) =
     PackageSpec(name, uuid, VersionSpec())

@@ -118,11 +118,6 @@ function deps_graph(env::EnvCache, pkgs::Vector{PackageSpec}, reqs)
     deps = Dict{UUID,Dict{VersionNumber,Dict{UUID,VersionSpec}}}()
     uuids = [pkg.uuid for pkg in pkgs]
     seen = UUID[]
-    for pkg in pkgs
-        if has_path(pkg)
-            push!(seen, pkg.uuid)
-        end
-    end
     while true
         unseen = setdiff(uuids, seen)
         isempty(unseen) && break
