@@ -1,6 +1,6 @@
 module TerminalMenus
 
-import Pkg3.iswindows
+import Pkg3: iswindows, Nothing
 
 terminal = nothing  # The user terminal
 
