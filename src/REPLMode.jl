@@ -4,6 +4,12 @@ import Pkg3
 using Pkg3.Types
 using Pkg3.Display
 using Pkg3.Operations
+import Pkg3: Nothing
+
+if !Base.isdeprecated(Base, :shift!)
+    const popfirst! = shift!
+end
+
 
 import Base: LineEdit, REPL, REPLCompletions
 import Base.Random: UUID
@@ -73,7 +79,7 @@ function tokenize(cmd::String)::Vector{Tuple{Symbol,Vararg{Any}}}
     words = map(m->m.match, eachmatch(lex_re, cmd))
     help_mode = false
     while !isempty(words)
-        word = shift!(words)
+        word = popfirst!(words)
         if word[1] == '-' && length(word) > 1
             push!(tokens, parse_option(word))
         else
@@ -87,7 +93,7 @@ function tokenize(cmd::String)::Vector{Tuple{Symbol,Vararg{Any}}}
         cmderror("no package command given")
     end
     while !isempty(words)
-        word = shift!(words)
+        word = popfirst!(words)
         if word[1] == '-'
             push!(tokens, parse_option(word))
         elseif word[1] == '@'
@@ -112,7 +118,7 @@ function do_cmd(repl::Base.REPL.AbstractREPL, input::String)
         do_cmd!(tokens, repl)
     catch err
         if err isa CommandError
-            Base.display_error(repl.t.err_stream, ErrorException(err.msg), Ptr{Void}[])
+            Base.display_error(repl.t.err_stream, ErrorException(err.msg), Ptr{Nothing}[])
         else
             Base.display_error(repl.t.err_stream, err, Base.catch_backtrace())
         end
@@ -122,7 +128,7 @@ end
 function do_cmd!(tokens, repl; preview = false)
     local cmd::Symbol
     while !isempty(tokens)
-        token = shift!(tokens)
+        token = popfirst!(tokens)
         if token[1] == :cmd
             cmd = token[2]
             break
@@ -140,7 +146,7 @@ function do_cmd!(tokens, repl; preview = false)
     end
     cmd == :init && return do_init!(tokens)
     cmd == :preview && return do_preview!(tokens, repl)
-    local env_opt::Union{String,Void} = get(ENV, "JULIA_ENV", nothing)
+    local env_opt::Union{String,Nothing} = get(ENV, "JULIA_ENV", nothing)
     env = EnvCache(env_opt)
     preview && (env.preview[] = true)
     cmd == :help    ?    do_help!(env, tokens, repl) :
@@ -335,7 +341,7 @@ function do_rm!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
     mode = :project
     pkgs = PackageSpec[]
     while !isempty(tokens)
-        token = shift!(tokens)
+        token = popfirst!(tokens)
         if token[1] == :pkg
             push!(pkgs, PackageSpec(token[2:end]...))
             pkgs[end].mode = mode
@@ -364,7 +370,7 @@ function do_add!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
         cmderror("package name/uuid must precede version spec `@$(tokens[1][2])`")
     pkgs = PackageSpec[]
     while !isempty(tokens)
-        token = shift!(tokens)
+        token = popfirst!(tokens)
         if token[1] == :pkg
             push!(pkgs, PackageSpec(token[2:end]...))
         elseif token[1] == :ver
@@ -387,7 +393,7 @@ function do_up!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
     level = UpgradeLevel(:major)
     last_token_type = :cmd
     while !isempty(tokens)
-        token = shift!(tokens)
+        token = popfirst!(tokens)
         if token[1] == :pkg
             push!(pkgs, PackageSpec(token[2:end]..., level))
             pkgs[end].mode = mode
@@ -416,7 +422,7 @@ end
 function do_status!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
     mode = :combined
     while !isempty(tokens)
-        token = shift!(tokens)
+        token = popfirst!(tokens)
         if token[1] == :opt
             if token[2] in (:project, :manifest)
                 length(token) == 2 ||
@@ -437,7 +443,7 @@ function do_test!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
     pkgs = PackageSpec[]
     coverage = false
     while !isempty(tokens)
-        token = shift!(tokens)
+        token = popfirst!(tokens)
         if token[1] == :pkg
             if length(token) == 2
                 pkg = PackageSpec(token[2])
@@ -469,7 +475,7 @@ end
 function do_build!(env::EnvCache, tokens::Vector{Tuple{Symbol,Vararg{Any}}})
     pkgs = PackageSpec[]
     while !isempty(tokens)
-        token = shift!(tokens)
+        token = popfirst!(tokens)
         if token[1] == :pkg
             push!(pkgs, PackageSpec(token[2:end]...))
         else

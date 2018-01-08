@@ -4,7 +4,7 @@ module GraphType
 
 using ..Types
 import ..Types.uuid_julia
-import Pkg3.equalto
+import Pkg3: equalto, Nothing
 
 export Graph, ResolveLog, add_reqs!, add_fixed!, simplify_graph!, simplify_graph_soft!,
        get_resolve_log, showlog, push_snapshot!, pop_snapshot!, wipe_snapshots!
@@ -30,11 +30,11 @@ mutable struct ResolveLogEntry
     journal::ResolveJournal # shared with all other entries
     pkg::UUID
     header::String
-    events::Vector{Tuple{Any,String}} # here Any should ideally be Union{ResolveLogEntry,Void}
+    events::Vector{Tuple{Any,String}} # here Any should ideally be Union{ResolveLogEntry,Nothing}
     ResolveLogEntry(journal::ResolveJournal, pkg::UUID, header::String = "") = new(journal, pkg, header, [])
 end
 
-function Base.push!(entry::ResolveLogEntry, reason::Tuple{Union{ResolveLogEntry,Void},String}, to_journal::Bool = true)
+function Base.push!(entry::ResolveLogEntry, reason::Tuple{Union{ResolveLogEntry,Nothing},String}, to_journal::Bool = true)
     push!(entry.events, reason)
     to_journal && entry.pkg ≠ uuid_julia && push!(entry.journal, (entry.pkg, reason[2]))
     return entry
@@ -74,7 +74,7 @@ mutable struct ResolveLog
 end
 
 # Installation state: either a version, or uninstalled
-const InstState = Union{VersionNumber,Void}
+const InstState = Union{VersionNumber,Nothing}
 
 
 # GraphData is basically a part of Graph that collects data structures useful

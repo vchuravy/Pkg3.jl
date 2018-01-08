@@ -5,7 +5,11 @@ using SHA
 using Pkg3: TOML, TerminalMenus, Dates
 
 import Pkg3
-import Pkg3: depots, logdir, iswindows
+import Pkg3: depots, logdir, iswindows, Nothing
+
+if Base.isdeprecated(Base, :isdigit)
+    using Unicode
+end
 
 export UUID, pkgID, SHA1, VersionRange, VersionSpec, empty_versionspec,
     Requires, Fixed, merge_requires!, satisfies, PkgError,
@@ -53,13 +57,12 @@ struct SHA1
             throw(ArgumentError("wrong number of bytes for SHA1 hash: $(length(bytes))"))
         return new(bytes)
     end
+    SHA1(s::String) = SHA1(hex2bytes(s))
 end
 
-Base.convert(::Type{SHA1}, s::String) = SHA1(hex2bytes(s))
 Base.convert(::Type{Vector{UInt8}}, hash::SHA1) = hash.bytes
-Base.convert(::Type{String}, hash::SHA1) = bytes2hex(Vector{UInt8}(hash))
 
-Base.string(hash::SHA1) = String(hash)
+Base.string(hash::SHA1) = bytes2hex(Vector{UInt8}(hash))
 Base.show(io::IO, hash::SHA1) = print(io, "SHA1(", String(hash), ")")
 Base.isless(a::SHA1, b::SHA1) = lexless(a.bytes, b.bytes)
 Base.hash(a::SHA1, h::UInt) = hash((SHA1, a.bytes), h)
@@ -312,14 +315,14 @@ Base.show(io::IO, f::Fixed) = isempty(f.requires) ?
 
 struct PkgError <: Exception
     msg::AbstractString
-    ex::Nullable{Exception}
+    ex::Union{Exception, Nothing}
 end
-PkgError(msg::AbstractString) = PkgError(msg, Nullable{Exception}())
+PkgError(msg::AbstractString) = PkgError(msg, nothing)
 
 function Base.showerror(io::IO, pkgerr::PkgError)
     print(io, pkgerr.msg)
-    if !isnull(pkgerr.ex)
-        pkgex = get(pkgerr.ex)
+    if pkgerr.ex !== nothing
+        pkgex = pkgerr.ex
         if isa(pkgex, CompositeException)
             for cex in pkgex
                 print(io, "\n=> ")
@@ -409,8 +412,8 @@ const default_envs = [
 
 struct EnvCache
     # environment info:
-    env::Union{Void,String}
-    git::Union{Void,LibGit2.GitRepo}
+    env::Union{Nothing,String}
+    git::Union{Nothing,LibGit2.GitRepo}
 
     # paths for files:
     project_file::String
@@ -426,7 +429,7 @@ struct EnvCache
 
     preview::Ref{Bool}
 
-    function EnvCache(env::Union{Void,String})
+    function EnvCache(env::Union{Nothing,String})
         project_file, git_repo = find_project(env)
         project = read_project(project_file)
         if haskey(project, "manifest")
@@ -658,7 +661,7 @@ function init_if_interactive(path::String)
     cmderror("did not find a local environment at $(path), run `init` to create one")
 end
 
-function find_project(::Void)
+function find_project(::Nothing)
     path, gitrepo = find_local_env(pwd())
     path != nothing && return path, gitrepo
     path, gitrepo = find_named_env()
@@ -738,7 +741,7 @@ function ensure_resolved(
     env::EnvCache,
     pkgs::AbstractVector{PackageSpec},
     registry::Bool = false,
-)::Void
+)::Nothing
     unresolved = Dict{String,Vector{UUID}}()
     for pkg in pkgs
         has_uuid(pkg) && continue
@@ -819,7 +822,7 @@ function find_registered!(
     names::Vector{String},
     uuids::Vector{UUID} = UUID[];
     force::Bool = false,
-)::Void
+)::Nothing
     # only look if there's something new to see (or force == true)
     names = filter(name->!haskey(env.uuids, name), names)
     uuids = filter(uuid->!haskey(env.paths, uuid), uuids)
@@ -905,11 +908,12 @@ function find_registered!(
         end
     end
 end
-find_registered!(env::EnvCache, uuids::Vector{UUID}; force::Bool=false)::Void =
+
+find_registered!(env::EnvCache, uuids::Vector{UUID}; force::Bool=false)::Nothing =
     find_registered!(env, String[], uuids, force=force)
 
 "Lookup all packages in project & manifest files"
-find_registered!(env::EnvCache)::Void =
+find_registered!(env::EnvCache)::Nothing =
     find_registered!(env, String[], UUID[], force=true)
 
 "Get registered uuids associated with a package name"
@@ -980,7 +984,7 @@ function registered_info(env::EnvCache, uuid::UUID, key::String)
 end
 
 "Find package by UUID in the manifest file"
-function manifest_info(env::EnvCache, uuid::UUID)::Union{Dict{String,Any},Void}
+function manifest_info(env::EnvCache, uuid::UUID)::Union{Dict{String,Any},Nothing}
     uuid in values(env.uuids) || find_registered!(env, [uuid])
     for (name, infos) in env.manifest, info in infos
         haskey(info, "uuid") && uuid == UUID(info["uuid"]) || continue

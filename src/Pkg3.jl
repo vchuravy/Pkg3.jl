@@ -2,25 +2,29 @@ __precompile__(true)
 module Pkg3
 
 
+#####################
+# Deprecation Fixes #
+#####################
 if VERSION < v"0.7.0-DEV.2575"
     const Dates = Base.Dates
 else
     import Dates
 end
 
-@enum LoadErrorChoice LOAD_ERROR_QUERY LOAD_ERROR_INSTALL LOAD_ERROR_ERROR
-
-Base.@kwdef mutable struct GlobalSettings
-    load_error_choice::LoadErrorChoice = LOAD_ERROR_QUERY # query, install, or error, when not finding package on import
-    use_libgit2_for_all_downloads::Bool = false
-    num_concurrent_downloads::Int = 8
-    depots::Vector{String} = [joinpath(homedir(), ".julia")]
+if Base.isdeprecated(Base, Symbol("@sprintf"))
+    using Printf
 end
 
-const GLOBAL_SETTINGS = GlobalSettings()
+if !isdefined(Base, :Nothing)
+    const Nothing = Void
+end
 
-depots() = GLOBAL_SETTINGS.depots
-logdir() = joinpath(depots()[1], "logs")
+if VERSION < v"0.7.0-DEV.2988"
+    macro info(x)
+        :(info($(esc(x))))
+        #:(info($(map(esc, [x...])...)))
+    end
+end
 
 iswindows() = @static VERSION < v"0.7-" ? Sys.is_windows() : Sys.iswindows()
 isapple()   = @static VERSION < v"0.7-" ? Sys.is_apple()   : Sys.isapple()
@@ -35,6 +39,22 @@ if !isdefined(Base, :EqualTo)
     (f::EqualTo)(y) = isequal(f.x, y)
     const equalto = EqualTo
 end
+
+# end deprecation fixes
+
+@enum LoadErrorChoice LOAD_ERROR_QUERY LOAD_ERROR_INSTALL LOAD_ERROR_ERROR
+
+Base.@kwdef mutable struct GlobalSettings
+    load_error_choice::LoadErrorChoice = LOAD_ERROR_QUERY # query, install, or error, when not finding package on import
+    use_libgit2_for_all_downloads::Bool = false
+    num_concurrent_downloads::Int = 8
+    depots::Vector{String} = [joinpath(homedir(), ".julia")]
+end
+
+const GLOBAL_SETTINGS = GlobalSettings()
+
+depots() = GLOBAL_SETTINGS.depots
+logdir() = joinpath(depots()[1], "logs")
 
 # load snapshotted dependencies
 include("../ext/BinaryProvider/src/BinaryProvider.jl")
@@ -72,7 +92,7 @@ function Base.julia_cmd(julia::AbstractString)
 end
 
 if VERSION < v"0.7.0-DEV.2303"
-    Base.find_in_path(name::String, wd::Void)   = _find_package(name)
+    Base.find_in_path(name::String, wd::Nothing)   = _find_package(name)
     Base.find_in_path(name::String, wd::String) = _find_package(name)
 else
     Base.find_package(name::String) = _find_package(name)
@@ -102,7 +122,7 @@ function _find_package(name::String)
         # query_if_interactive is hidden from inference
         # since it has a significant inference cost and is not used
         # when e.g. precompiling modules
-        return query_if_interactive[](base, name)::Union{Void, String}
+        return query_if_interactive[](base, name)::Union{Nothing, String}
     else
         return nothing
     end

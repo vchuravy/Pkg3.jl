@@ -2,6 +2,8 @@
 
 module MaxSum
 
+import ...Pkg3: Nothing
+
 include("FieldValues.jl")
 
 using .FieldValues, ..VersionWeights, ...Types, ...GraphType
@@ -109,7 +111,7 @@ mutable struct SolutionTrace
     num_nondecimated::Int
 
     best::Vector{Int}
-    staged::Union{Tuple{Int,Int},Void}
+    staged::Union{Tuple{Int,Int},Nothing}
 
     function SolutionTrace(graph::Graph)
         np = graph.np

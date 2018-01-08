@@ -11,6 +11,10 @@ using .MaxSum
 import ..Types: uuid_julia
 import ..GraphType: is_julia, check_constraints, log_event_global!, log_event_greedysolved!, log_event_maxsumsolved!, log_event_maxsumtrace!
 
+if Base.isdeprecated(Base, Symbol("@sprintf"))
+    using Printf
+end
+
 export resolve, sanity_check
 
 "Resolve package dependencies."

@@ -3,8 +3,9 @@ module Operations
 using Base.Random: UUID
 using Base: LibGit2
 using Pkg3: TerminalMenus, Types, GraphType, Resolve
-import Pkg3: GLOBAL_SETTINGS, depots, BinaryProvider
+import Pkg3: GLOBAL_SETTINGS, depots, BinaryProvider, @info, Nothing
 import Pkg3.Types: uuid_julia
+
 
 const SlugInt = UInt32 # max p = 4
 const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -130,7 +131,7 @@ function load_package_data_raw(T::Type, path::String)
 end
 
 function deps_graph(env::EnvCache, uuid_to_name::Dict{UUID,String}, reqs::Requires, fixed::Dict{UUID,Fixed})
-    uuids = union(keys(reqs), keys(fixed), map(fx->keys(fx.requires), values(fixed))...)
+    uuids = collect(union(keys(reqs), keys(fixed), map(fx->keys(fx.requires), values(fixed))...))
     seen = UUID[]
 
     all_versions = Dict{UUID,Set{VersionNumber}}(fp => Set([fx.version]) for (fp,fx) in fixed)
@@ -156,7 +157,6 @@ function deps_graph(env::EnvCache, uuid_to_name::Dict{UUID,String}, reqs::Requir
                 compatibility_data = load_package_data_raw(VersionSpec, joinpath(path, "compatibility.toml"))
 
                 union!(all_versions_u, versions)
-
                 for (vr,dd) in deps_data
                     all_deps_u_vr = get_or_make!(all_deps_u, vr)
                     for (name,other_uuid) in dd
@@ -191,7 +191,7 @@ end
 
 "Resolve a set of versions given package version specs"
 function resolve_versions!(env::EnvCache, pkgs::Vector{PackageSpec})::Dict{UUID,VersionNumber}
-    info("Resolving package versions")
+    @info("Resolving package versions")
     # anything not mentioned is fixed
     uuids = UUID[pkg.uuid for pkg in pkgs]
     uuid_to_name = Dict{UUID,String}(uuid_julia => "julia")
@@ -277,7 +277,7 @@ function install(
     name::String,
     hash::SHA1,
     urls::Vector{String},
-    version::Union{VersionNumber,Void} = nothing
+    version::Union{VersionNumber,Nothing} = nothing
 )::Tuple{String,Bool}
     # returns path to version & if it's newly installed
     version_path = find_installed(uuid, hash)
@@ -447,7 +447,7 @@ function apply_versions(env::EnvCache, pkgs::Vector{PackageSpec})::Vector{UUID}
         pkg, path, version, hash, new = r
         if new
             vstr = version != nothing ? "v$version" : "[$h]"
-            new && info("Installed $(rpad(names[pkg.uuid] * " ", max_name + 2, "─")) $vstr")
+            new && @info "Installed $(rpad(names[pkg.uuid] * " ", max_name + 2, "─")) $vstr"
         end
         uuid = pkg.uuid
         version = pkg.version::VersionNumber
@@ -481,7 +481,7 @@ end
 
 function build_versions(env::EnvCache, uuids::Vector{UUID})
     # collect builds for UUIDs with `deps/build.jl` files
-    env.preview[] && (info("Skipping building in preview mode"); return)
+    env.preview[] && (@info "Skipping building in preview mode"; return)
     builds = Tuple{UUID,String,SHA1,String}[]
     for uuid in uuids
         info = manifest_info(env, uuid)
@@ -502,8 +502,8 @@ function build_versions(env::EnvCache, uuids::Vector{UUID})
         LOAD_PATH = filter(x -> x isa AbstractString, Base.LOAD_PATH)
         for (uuid, name, hash, build_file) in builds
             log_file = splitext(build_file)[1] * ".log"
-            Base.info("Building $name [$(string(hash)[1:16])]...")
-            Base.info(" → $log_file")
+            @info "Building $name [$(string(hash)[1:16])]..."
+            @info " → $log_file"
             code = """
                 empty!(Base.LOAD_PATH)
                 append!(Base.LOAD_PATH, $(repr(LOAD_PATH)))
@@ -589,7 +589,7 @@ function rm(env::EnvCache, pkgs::Vector{PackageSpec})
         end
     end
     if length(env.project["deps"]) == n
-        info("No changes")
+        @info "No changes"
         return
     end
     # only keep reachable manifest entires

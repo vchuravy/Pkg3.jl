@@ -2,9 +2,13 @@ module API
 
 import Pkg3
 using Pkg3.Display.DiffEntry
-import Pkg3: depots, logdir, TOML
+import Pkg3: depots, logdir, TOML, Nothing
 using Pkg3: Types, Dates
 using Base.Random.UUID
+
+if Base.isdeprecated(Base, Symbol("@sprintf"))
+    using Printf
+end
 
 previewmode_info() = info("In preview mode")
 
@@ -128,7 +132,7 @@ function test(env::EnvCache, pkgs::Vector{PackageSpec}; coverage=false, preview=
 end
 
 
-function convert(::Type{Dict{String, VersionNumber}}, diffs::Union{Array{DiffEntry}, Void})    
+function convert(::Type{Dict{String, VersionNumber}}, diffs::Union{Array{DiffEntry}, Nothing})    
     version_status = Dict{String, VersionNumber}()
     diffs == nothing && return version_status
     for entry in diffs
