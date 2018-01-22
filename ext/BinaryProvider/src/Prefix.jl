@@ -429,7 +429,7 @@ function verify(path::AbstractString, hash::AbstractString; verbose::Bool = fals
     # First, it must exist
     if isfile(hash_path)
         # Next, it must contain the same hash as what we're verifying against
-        if readstring(open(hash_path, "r")) == hash
+        if read(open(hash_path, "r"), String) == hash
             # Next, it must be no older than the actual path
             if stat(hash_path).mtime >= stat(path).mtime
                 # If all of that is true, then we're good!
