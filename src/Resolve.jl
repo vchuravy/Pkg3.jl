@@ -2,6 +2,8 @@
 
 module Resolve
 
+using Printf
+
 include(joinpath("resolve", "VersionWeights.jl"))
 include(joinpath("resolve", "MaxSum.jl"))
 

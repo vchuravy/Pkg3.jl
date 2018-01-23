@@ -1,6 +1,7 @@
 __precompile__(true)
 module Pkg3
 
+using Printf
 
 if VERSION < v"0.7.0-DEV.2575"
     const Dates = Base.Dates

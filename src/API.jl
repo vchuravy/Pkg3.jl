@@ -6,6 +6,8 @@ import Pkg3: depots, logdir, TOML
 using Pkg3: Types, Dates
 using Base.Random.UUID
 
+using Printf
+
 previewmode_info() = info("In preview mode")
 
 add(pkg::String; kwargs...)               = add([pkg]; kwargs...)
