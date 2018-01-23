@@ -6,9 +6,9 @@ using Base.Random: UUID
 using Pkg3.Types
 using Pkg3.Types: uuid_package, uuid_registry, uuid5
 
-include("Pkg2/Pkg2.jl")
-import .Pkg2.Reqs: Reqs, Requirement
-import .Pkg2.Types: VersionInterval
+import Pkg
+import Pkg.Reqs: Reqs, Requirement
+import Pkg.Types: VersionInterval
 
 ## Loading data into various data structures ##
 
@@ -140,6 +140,6 @@ end
 
 ## Load package data ##
 
-const pkgs = load_packages(Pkg2.dir("METADATA"))
+const pkgs = load_packages(Pkg.dir("METADATA"))
 delete!(pkgs, "CardinalDicts") # package repo no longer exists
 prune!(pkgs)
