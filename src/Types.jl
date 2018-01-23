@@ -312,14 +312,14 @@ Base.show(io::IO, f::Fixed) = isempty(f.requires) ?
 
 struct PkgError <: Exception
     msg::AbstractString
-    ex::Nullable{Exception}
+    ex::Union{Nothing, Exception}
 end
-PkgError(msg::AbstractString) = PkgError(msg, Nullable{Exception}())
+PkgError(msg::AbstractString) = PkgError(msg, Union{Nothing, Exception}())
 
 function Base.showerror(io::IO, pkgerr::PkgError)
     print(io, pkgerr.msg)
-    if !isnull(pkgerr.ex)
-        pkgex = get(pkgerr.ex)
+    if pkgerr.ex !== nothing
+        pkgex = pkgerr.ex
         if isa(pkgex, CompositeException)
             for cex in pkgex
                 print(io, "\n=> ")

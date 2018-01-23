@@ -9,7 +9,7 @@ end
 
 macro testval(s, v)
     f = "foo = $s"
-    :( @test get(parse(Parser($f)))["foo"] == $v )
+    :( @test parse(Parser($f))["foo"] == $v )
 end
 
 macro fail(s...)
@@ -42,9 +42,9 @@ macro fail(s...)
                     println(e)
                 end
             end
-            if !isnull($ppvar)
+            if $ppvar !== nothing
                 println("RESULT:")
-                println(get($ppvar))
+                println($ppvar)
             end
         end
     else
@@ -66,7 +66,7 @@ macro fail(s...)
         local $ppvar = parse($pvar)
         $dbgexp
         $errtsts
-        @test isnull($ppvar)
+        @test $ppvar === nothing
     end
 end
 
@@ -91,9 +91,9 @@ macro success(s...)
                     println(e)
                 end
             end
-            if !isnull($ppvar)
+            if $ppvar !== nothing
                 println("RESULT:")
-                println(get($ppvar))
+                println($ppvar)
             end
         end
     else
@@ -104,7 +104,7 @@ macro success(s...)
         local $pvar = Parser($teststr)
         local $ppvar = parse($pvar)
         $dbgexp
-        @test !isnull($ppvar)
+        @test $ppvar !== nothing
     end
 end
 
@@ -131,18 +131,18 @@ end
 
     @testset "Lookups" begin
         p = Parser("""hello."world\\t".a.0.'escaped'.value""")
-        @testset for (p, s) in zip(get(lookup(p)), ["hello"; "world\t"; "a"; "0"; "escaped"; "value"])
+        @testset for (p, s) in zip(lookup(p), ["hello"; "world\t"; "a"; "0"; "escaped"; "value"])
             @test p == s
         end
 
         p = Parser("")
-        @test get(lookup(p)) == String[]
+        @test lookup(p) == String[]
 
         p = Parser("value")
-        @test get(lookup(p)) == String["value"]
+        @test lookup(p) == String["value"]
 
         p = Parser("\"\"")
-        #TODO: @test get(lookup(p)) == String[""]
+        #TODO: @test lookup(p) == String[""]
 
     end
 
@@ -191,7 +191,7 @@ bbb = \"aaa\"\r
             foo = \"\"\"\\\r\n\"\"\"
             bar = \"\"\"\\\r\n   \r\n   \r\n   a\"\"\"
         ")
-        res = get(parse(p))
+        res = parse(p)
         @test res["foo"] == ""
         @test res["bar"] == "a"
 
@@ -267,7 +267,7 @@ trimmed in raw strings.
     is preserved.
 '''
 """)
-        res = get(parse(p))
+        res = parse(p)
 
         @test res["bar"]  == "\0"
         @test res["key1"] == "One\nTwo"
@@ -391,7 +391,7 @@ trimmed in raw strings.
             \"character encoding\" = \"value\"
             'ʎǝʞ' = \"value\"
         ")
-        res = get(parse(p))
+        res = parse(p)
 
         @test haskey(res, "foo")
         @test haskey(res, "-")
@@ -441,7 +441,7 @@ trimmed in raw strings.
             ['a.a']
             ['\"\"']
         ")
-        res = get(parse(p))
+        res = parse(p)
         @test haskey(res, "a.a")
         @test haskey(res, "f f")
         @test haskey(res, "f.f")
@@ -450,7 +450,7 @@ trimmed in raw strings.
         @test haskey(res["a"], "b")
 
 
-        @test haskey(get(parse(Parser("[foo]"))), "foo")
+        @test haskey(parse(Parser("[foo]")), "foo")
 
 
         @testset "Inline Tables" begin
@@ -548,7 +548,7 @@ trimmed in raw strings.
   [foo.bar]
     #...
 """)
-        res = get(parse(p))
+        res = parse(p)
         @test haskey(res, "foo")
         arr = res["foo"]
         @test length(arr) == 2
@@ -571,7 +571,7 @@ trimmed in raw strings.
   [[fruit.variety]]
     name = "plantain"
 """)
-        res = get(parse(p))
+        res = parse(p)
         @test haskey(res, "fruit")
         fruit = res["fruit"]
         @test length(fruit) == 2

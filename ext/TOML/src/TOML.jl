@@ -10,9 +10,9 @@ module TOML
     include("print.jl")
 
     "Convert `TOML.Table` to `Dict{String,Any}`"
-    function table2dict(tbl::Nullable{Table})
-        isnull(tbl) && return Dict{String,Any}()
-        return table2dict(get(tbl))
+    function table2dict(tbl::Union{Nothing, Table})
+        tbl === nothing && return Dict{String,Any}()
+        return table2dict(tbl::Table)
     end
 
     function table2dict(tbl::Table)
